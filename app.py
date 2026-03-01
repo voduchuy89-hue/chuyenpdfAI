@@ -5,6 +5,10 @@ from pdf2image import convert_from_bytes
 import io
 import os
 from openai import OpenAI
+import docx
+from docx.shared import Mm
+from openpyxl import Workbook
+from openpyxl.styles import Alignment
 
 # ========================================================================================
 # CẤU HÌNH TRANG
@@ -78,6 +82,49 @@ def call_openai_proofread(text: str) -> str:
     )
     return response.choices[0].message.content
 
+
+def build_docx(text: str) -> bytes:
+    """
+    Tạo file Word (.docx) khổ A4 từ văn bản.
+    """
+    buffer = io.BytesIO()
+    document = docx.Document()
+    section = document.sections[0]
+    section.page_width = Mm(210)   # A4 ngang 210mm
+    section.page_height = Mm(297)  # A4 dọc 297mm
+
+    for line in text.splitlines():
+        document.add_paragraph(line)
+
+    document.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def build_excel(text: str) -> bytes:
+    """
+    Tạo file Excel (.xlsx) với nội dung ở cột A, thiết lập in trên khổ A4.
+    """
+    buffer = io.BytesIO()
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "OCR"
+
+    # Thiết lập khổ giấy A4 khi in
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+
+    lines = text.splitlines()
+    for idx, line in enumerate(lines, start=1):
+        cell = ws[f"A{idx}"]
+        cell.value = line
+        cell.alignment = Alignment(wrap_text=True)
+
+    ws.column_dimensions["A"].width = 100
+
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
 # ========================================================================================
 # GIAO DIỆN CHÍNH CỦA ỨNG DỤNG
 # ========================================================================================
@@ -122,13 +169,32 @@ if uploaded_files:
                 st.error(error)
             else:
                 st.text_area("Văn bản:", text, height=300, key=f"text_{uploaded_file.name}")
-                st.download_button(
-                    label="📥 Tải kết quả này",
-                    data=text.encode('utf-8'),
-                    file_name=f"ket_qua_{uploaded_file.name}.txt",
-                    mime="text/plain",
-                    key=f"download_{uploaded_file.name}"
-                )
+
+                col_txt, col_docx, col_xlsx = st.columns(3)
+                with col_txt:
+                    st.download_button(
+                        label="📥 Tải TXT",
+                        data=text.encode('utf-8'),
+                        file_name=f"ket_qua_{uploaded_file.name}.txt",
+                        mime="text/plain",
+                        key=f"download_txt_{uploaded_file.name}"
+                    )
+                with col_docx:
+                    st.download_button(
+                        label="📄 Tải Word (A4)",
+                        data=build_docx(text),
+                        file_name=f"ket_qua_{uploaded_file.name}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key=f"download_docx_{uploaded_file.name}"
+                    )
+                with col_xlsx:
+                    st.download_button(
+                        label="📊 Tải Excel (A4)",
+                        data=build_excel(text),
+                        file_name=f"ket_qua_{uploaded_file.name}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key=f"download_xlsx_{uploaded_file.name}"
+                    )
 
                 use_ai = st.button(
                     "✨ Dùng OpenAI kiểm tra và sửa lỗi văn bản",
