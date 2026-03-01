@@ -1,3 +1,17 @@
+"""
+Script đánh thức app Streamlit (chạy bằng GitHub Actions).
+Không dùng làm file chính trên Streamlit Cloud — cấu hình Main file là app.py.
+"""
+import sys
+
+# Nếu đang chạy trong môi trường Streamlit (Cloud), không dùng selenium
+if "streamlit" in sys.modules:
+    import streamlit as st
+    st.error(
+        "Đây không phải ứng dụng chính. Trên Streamlit Cloud, hãy đặt **Main file path** thành **app.py** (Manage app → Settings)."
+    )
+    st.stop()
+
 import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService

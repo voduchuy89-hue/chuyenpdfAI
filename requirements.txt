@@ -2,3 +2,5 @@ streamlit
 pytesseract
 pdf2image
 Pillow
+selenium
+webdriver-manager
