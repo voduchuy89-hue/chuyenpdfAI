@@ -4,3 +4,4 @@ pdf2image
 Pillow
 selenium
 webdriver-manager
+openai>=1.0.0

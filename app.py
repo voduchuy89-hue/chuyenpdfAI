@@ -3,6 +3,8 @@ from PIL import Image
 import pytesseract
 from pdf2image import convert_from_bytes
 import io
+import os
+from openai import OpenAI
 
 # ========================================================================================
 # CẤU HÌNH TRANG
@@ -42,6 +44,39 @@ def process_file(file_bytes, file_extension):
         return extracted_text, None
     except Exception as e:
         return None, f"Đã xảy ra lỗi trong quá trình xử lý: {e}"
+
+
+def call_openai_proofread(text: str) -> str:
+    """
+    Gọi OpenAI để kiểm tra lỗi, chỉnh sửa văn bản sau OCR.
+    Ưu tiên lấy khóa từ Streamlit secrets (OPENAI_API_KEY).
+    """
+    api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", None)
+    if not api_key:
+        raise RuntimeError(
+            "Chưa cấu hình OpenAI. Vào Manage app → Settings → Secrets và thêm OPENAI_API_KEY."
+        )
+
+    # Đảm bảo thư viện OpenAI đọc được API key từ biến môi trường
+    os.environ["OPENAI_API_KEY"] = api_key
+
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Bạn là trợ lý giúp chỉnh sửa văn bản tiếng Việt và tiếng Anh "
+                    "được trích xuất từ OCR. Hãy sửa lỗi chính tả, dấu câu và cách "
+                    "xuống dòng hợp lý. Chỉ trả về văn bản đã chỉnh sửa, không giải thích gì thêm."
+                ),
+            },
+            {"role": "user", "content": text},
+        ],
+        temperature=0.2,
+    )
+    return response.choices[0].message.content
 
 # ========================================================================================
 # GIAO DIỆN CHÍNH CỦA ỨNG DỤNG
@@ -94,3 +129,29 @@ if uploaded_files:
                     mime="text/plain",
                     key=f"download_{uploaded_file.name}"
                 )
+
+                use_ai = st.button(
+                    "✨ Dùng OpenAI kiểm tra và sửa lỗi văn bản",
+                    key=f"ai_fix_{uploaded_file.name}",
+                )
+
+                if use_ai:
+                    try:
+                        with st.spinner("OpenAI đang kiểm tra và hoàn thiện văn bản..."):
+                            fixed_text = call_openai_proofread(text)
+
+                        st.text_area(
+                            "Văn bản đã được AI hiệu đính:",
+                            fixed_text,
+                            height=300,
+                            key=f"text_ai_{uploaded_file.name}",
+                        )
+                        st.download_button(
+                            label="📥 Tải văn bản đã hiệu đính",
+                            data=fixed_text.encode('utf-8'),
+                            file_name=f"ket_qua_AI_{uploaded_file.name}.txt",
+                            mime="text/plain",
+                            key=f"download_ai_{uploaded_file.name}",
+                        )
+                    except Exception as e:
+                        st.error(f"Không gọi được OpenAI: {e}")
