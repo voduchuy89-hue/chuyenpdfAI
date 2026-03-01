@@ -6,9 +6,9 @@ import io
 import os
 from openai import OpenAI
 import docx
-from docx.shared import Mm
+from docx.shared import Mm, Pt
 from openpyxl import Workbook
-from openpyxl.styles import Alignment
+from openpyxl.styles import Alignment, Font
 
 # ========================================================================================
 # CẤU HÌNH TRANG
@@ -89,9 +89,16 @@ def build_docx(text: str) -> bytes:
     """
     buffer = io.BytesIO()
     document = docx.Document()
+
+    # Thiết lập khổ giấy A4
     section = document.sections[0]
     section.page_width = Mm(210)   # A4 ngang 210mm
     section.page_height = Mm(297)  # A4 dọc 297mm
+
+    # Thiết lập font mặc định Times New Roman, cỡ 12
+    normal_style = document.styles["Normal"]
+    normal_style.font.name = "Times New Roman"
+    normal_style.font.size = Pt(12)
 
     for line in text.splitlines():
         document.add_paragraph(line)
@@ -113,11 +120,15 @@ def build_excel(text: str) -> bytes:
     # Thiết lập khổ giấy A4 khi in
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
 
+    # Font chung cho toàn bộ nội dung
+    base_font = Font(name="Times New Roman", size=12)
+
     lines = text.splitlines()
     for idx, line in enumerate(lines, start=1):
         cell = ws[f"A{idx}"]
         cell.value = line
         cell.alignment = Alignment(wrap_text=True)
+        cell.font = base_font
 
     ws.column_dimensions["A"].width = 100
 
@@ -212,12 +223,31 @@ if uploaded_files:
                             height=300,
                             key=f"text_ai_{uploaded_file.name}",
                         )
-                        st.download_button(
-                            label="📥 Tải văn bản đã hiệu đính",
-                            data=fixed_text.encode('utf-8'),
-                            file_name=f"ket_qua_AI_{uploaded_file.name}.txt",
-                            mime="text/plain",
-                            key=f"download_ai_{uploaded_file.name}",
-                        )
+
+                        ai_col_txt, ai_col_docx, ai_col_xlsx = st.columns(3)
+                        with ai_col_txt:
+                            st.download_button(
+                                label="📥 Tải TXT (AI)",
+                                data=fixed_text.encode('utf-8'),
+                                file_name=f"ket_qua_AI_{uploaded_file.name}.txt",
+                                mime="text/plain",
+                                key=f"download_ai_txt_{uploaded_file.name}",
+                            )
+                        with ai_col_docx:
+                            st.download_button(
+                                label="📄 Tải Word (A4, AI)",
+                                data=build_docx(fixed_text),
+                                file_name=f"ket_qua_AI_{uploaded_file.name}.docx",
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                key=f"download_ai_docx_{uploaded_file.name}",
+                            )
+                        with ai_col_xlsx:
+                            st.download_button(
+                                label="📊 Tải Excel (A4, AI)",
+                                data=build_excel(fixed_text),
+                                file_name=f"ket_qua_AI_{uploaded_file.name}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key=f"download_ai_xlsx_{uploaded_file.name}",
+                            )
                     except Exception as e:
                         st.error(f"Không gọi được OpenAI: {e}")
